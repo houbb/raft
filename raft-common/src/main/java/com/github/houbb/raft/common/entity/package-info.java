@@ -1,0 +1,1 @@
+package com.github.houbb.raft.common.entity;
