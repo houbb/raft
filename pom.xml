@@ -32,7 +32,7 @@
 
         <!--============================== INTER ==============================-->
         <heaven.version>0.13.0</heaven.version>
-        <opencc4j.version>1.8.1</opencc4j.version>
+        <log-integration.version>1.1.8</log-integration.version>
 
         <!--============================== OTHER ==============================-->
         <junit.version>4.13.1</junit.version>
@@ -62,6 +62,11 @@
                 <groupId>com.github.houbb</groupId>
                 <artifactId>heaven</artifactId>
                 <version>${heaven.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.houbb</groupId>
+                <artifactId>log-integration</artifactId>
+                <version>${log-integration.version}</version>
             </dependency>
             <!--============================== OTHER ==============================-->
 

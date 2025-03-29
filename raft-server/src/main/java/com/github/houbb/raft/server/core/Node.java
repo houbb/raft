@@ -1,5 +1,6 @@
 package com.github.houbb.raft.server.core;
 
+import com.github.houbb.raft.common.core.LifeCycle;
 import com.github.houbb.raft.common.entity.dto.NodeConfig;
 import com.github.houbb.raft.common.entity.req.AppendLogRequest;
 import com.github.houbb.raft.common.entity.req.ClientKeyValueRequest;
@@ -22,7 +23,7 @@ import com.github.houbb.raft.common.entity.resp.VoteResponse;
  * 我们让每个节点都可以接收客户端的请求，但 follower 节点并不能处理请求，所以需要重定向到 leader 节点，因此，我们需要一个重定向接口。
  *
  */
-public interface Node {
+public interface Node extends LifeCycle {
 
     /**
      * 设置配置文件.
