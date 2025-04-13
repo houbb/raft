@@ -22,7 +22,9 @@ import com.github.houbb.raft.common.rpc.RpcRequest;
 import com.github.houbb.raft.common.rpc.RpcResponse;
 
 /**
- * @author 莫那·鲁道
+ * rpc 服务端
+ *
+ * @author houbb
  */
 public interface RpcServer extends LifeCycle {
 

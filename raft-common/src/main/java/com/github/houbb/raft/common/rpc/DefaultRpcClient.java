@@ -36,10 +36,10 @@ public class DefaultRpcClient implements RpcClient {
     }
 
     @Override
-    public <R> R send(RpcRequest request, int timeout) {
+    public <R> R send(RpcRequest request, int timeoutMillis) {
         RpcResponse<R> result;
         try {
-            result = (RpcResponse<R>) rpcClient.invokeSync(request.getUrl(), request, timeout);
+            result = (RpcResponse<R>) rpcClient.invokeSync(request.getUrl(), request, timeoutMillis);
             return result.getResult();
         } catch (RemotingException e) {
             throw new RaftRemotingException("rpc RaftRemotingException ", e);

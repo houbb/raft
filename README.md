@@ -36,4 +36,8 @@ mq
 
 raft
 
+# 拓展阅读
+
+[raft-07-java 如何编写一个 Raft 分布式 KV 存储 lu-raft-kv](https://houbb.github.io/2022/07/09/sofastack-sofajraft-07-raft-impl-in-java-lu)
+
 

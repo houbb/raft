@@ -37,6 +37,7 @@ public class DefaultNode implements Node {
 
     @Override
     public void init() throws Throwable {
+        //1. 固定初始化开始选举调度
 
     }
 

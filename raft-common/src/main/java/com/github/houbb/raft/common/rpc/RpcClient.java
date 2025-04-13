@@ -20,7 +20,8 @@ package com.github.houbb.raft.common.rpc;
 import com.github.houbb.raft.common.core.LifeCycle;
 
 /**
- * @author 莫那·鲁道
+ * rpc 客户端
+ * @author houbb
  */
 public interface RpcClient extends LifeCycle {
 
@@ -32,6 +33,13 @@ public interface RpcClient extends LifeCycle {
      */
     <R> R send(RpcRequest request);
 
-    <R> R send(RpcRequest request, int timeout);
+    /**
+     * 发送请求
+     * @param request 请求
+     * @param timeoutMillis 超时
+     * @return 结果
+     * @param <R> 结果
+     */
+    <R> R send(RpcRequest request, int timeoutMillis);
 
 }
