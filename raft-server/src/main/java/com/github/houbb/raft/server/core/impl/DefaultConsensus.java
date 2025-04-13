@@ -218,6 +218,7 @@ public class DefaultConsensus implements Consensus {
         long nextCommit = nodeInfoContext.getCommitIndex() + 1;
 
         //如果 leaderCommit > commitIndex，令 commitIndex 等于 leaderCommit 和 新日志条目索引值中较小的一个
+        // 为什么？为了方便把缺失的日志，全部加上
         if (request.getLeaderCommit() > nodeInfoContext.getCommitIndex()) {
             int commitIndex = (int) Math.min(request.getLeaderCommit(), logManager.getLastIndex());
             nodeInfoContext.setCommitIndex(commitIndex);
