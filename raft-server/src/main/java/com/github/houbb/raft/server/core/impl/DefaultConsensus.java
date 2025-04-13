@@ -2,6 +2,8 @@ package com.github.houbb.raft.server.core.impl;
 
 import com.github.houbb.heaven.util.io.StreamUtil;
 import com.github.houbb.heaven.util.lang.StringUtil;
+import com.github.houbb.heaven.util.util.ArrayUtil;
+import com.github.houbb.heaven.util.util.CollectionUtil;
 import com.github.houbb.log.integration.core.Log;
 import com.github.houbb.log.integration.core.LogFactory;
 import com.github.houbb.raft.common.constant.enums.NodeStatusEnum;
@@ -11,9 +13,11 @@ import com.github.houbb.raft.common.entity.resp.AppendLogResponse;
 import com.github.houbb.raft.common.entity.resp.VoteResponse;
 import com.github.houbb.raft.server.core.Consensus;
 import com.github.houbb.raft.server.core.LogManager;
+import com.github.houbb.raft.server.core.StateMachine;
 import com.github.houbb.raft.server.dto.PeerInfoDto;
 import com.github.houbb.raft.server.dto.node.NodeInfoContext;
 import com.github.houbb.raft.server.support.peer.PeerManager;
+import org.checkerframework.checker.units.qual.A;
 
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -29,6 +33,11 @@ public class DefaultConsensus implements Consensus {
      * 选举锁
      */
     private final ReentrantLock voteLock = new ReentrantLock();
+
+    /**
+     * 附加日志锁
+     */
+    private final ReentrantLock appendLogLock = new ReentrantLock();
 
     /**
      * node 信息上下文
@@ -134,9 +143,98 @@ public class DefaultConsensus implements Consensus {
         return false;
     }
 
+    /**
+     * 添加日志
+     *
+     * 接收者实现：
+     *    如果 term < currentTerm 就返回 false （5.1 节）
+     *    如果日志在 prevLogIndex 位置处的日志条目的任期号和 prevLogTerm 不匹配，则返回 false （5.3 节）
+     *    如果已经存在的日志条目和新的产生冲突（索引值相同但是任期号不同），删除这一条和之后所有的 （5.3 节）
+     *    附加任何在已有的日志中不存在的条目
+     *    如果 leaderCommit > commitIndex，令 commitIndex 等于 leaderCommit 和 新日志条目索引值中较小的一个
+     *
+     * @param request 请求
+     * @return 结果
+     */
     @Override
     public AppendLogResponse appendLog(AppendLogRequest request) {
-        return null;
+        AppendLogResponse appendLogResponse = new AppendLogResponse();
+        final long currentTerm = nodeInfoContext.getCurrentTerm();
+        appendLogResponse.setTerm(currentTerm);
+        appendLogResponse.setSuccess(false);
+
+        final long reqTerm = request.getTerm();
+        try {
+            //1.1 抢占锁
+            boolean tryLockFlag = appendLogLock.tryLock();
+            if(!tryLockFlag) {
+                log.warn("[AppendLog] tryLog false");
+                return appendLogResponse;
+            }
+            //1.2 是否够格？
+            if(currentTerm > request.getTerm()) {
+                log.warn("[AppendLog] currentTerm={} > reqTerm={}", currentTerm, reqTerm);
+                return appendLogResponse;
+            }
+
+            //2.1 基本信息更新 为什么这样设置？
+            final PeerManager peerManager = nodeInfoContext.getPeerManager();
+            final long nowMills = System.currentTimeMillis();
+            nodeInfoContext.setElectionTime(nowMills);
+            nodeInfoContext.setPreElectionTime(nowMills);
+            nodeInfoContext.setStatus(NodeStatusEnum.FOLLOWER);
+            nodeInfoContext.setCurrentTerm(reqTerm);
+            peerManager.setLeader(new PeerInfoDto(request.getLeaderId()));
+            log.info("[AppendLog] update electionTime={}, status=Follower, term={}, leader={}",
+                    nowMills, reqTerm, request.getLeaderId());
+
+            //3.1 处理心跳
+            if(ArrayUtil.isEmpty(request.getEntries())) {
+                handleHeartbeat(request);
+
+                //3.2 返回响应
+                appendLogResponse.setTerm(reqTerm);
+                appendLogResponse.setSuccess(true);
+                return appendLogResponse;
+            }
+
+            return appendLogResponse;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            appendLogLock.unlock();
+        }
+    }
+
+    private void handleHeartbeat(AppendLogRequest request) {
+        final long startTime = System.currentTimeMillis();
+        log.info("handleHeartbeat start req={}", request);
+
+        final LogManager logManager = nodeInfoContext.getLogManager();
+
+        // 处理 leader 已提交但未应用到状态机的日志
+
+        // 下一个需要提交的日志的索引（如有）
+        long nextCommit = nodeInfoContext.getCommitIndex() + 1;
+
+        //如果 leaderCommit > commitIndex，令 commitIndex 等于 leaderCommit 和 新日志条目索引值中较小的一个
+        if (request.getLeaderCommit() > nodeInfoContext.getCommitIndex()) {
+            int commitIndex = (int) Math.min(request.getLeaderCommit(), logManager.getLastIndex());
+            nodeInfoContext.setCommitIndex(commitIndex);
+            nodeInfoContext.setLastApplied(commitIndex);
+        }
+
+        final StateMachine stateMachine = nodeInfoContext.getStateMachine();
+        while (nextCommit <= nodeInfoContext.getCommitIndex()){
+            // 提交之前的日志
+            // todo: 状态机需要基于 kv 实现
+            stateMachine.apply(logManager.read(nextCommit));
+
+            nextCommit++;
+        }
+
+        long costTime = System.currentTimeMillis() - startTime;
+        log.info("handleHeartbeat start end, costTime={}", costTime);
     }
 
 

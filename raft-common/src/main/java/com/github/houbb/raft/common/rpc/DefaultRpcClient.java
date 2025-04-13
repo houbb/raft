@@ -32,7 +32,7 @@ public class DefaultRpcClient implements RpcClient {
 
     @Override
     public <R> R send(RpcRequest request) {
-        return send(request, (int) TimeUnit.SECONDS.toMillis(5));
+        return send(request, (int) TimeUnit.SECONDS.toMillis(10));
     }
 
     @Override

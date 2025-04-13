@@ -3,6 +3,7 @@ package com.github.houbb.raft.server.dto.node;
 import com.github.houbb.raft.common.constant.enums.NodeStatusEnum;
 import com.github.houbb.raft.common.rpc.RpcClient;
 import com.github.houbb.raft.server.core.LogManager;
+import com.github.houbb.raft.server.core.StateMachine;
 import com.github.houbb.raft.server.support.peer.PeerManager;
 
 /**
@@ -39,6 +40,41 @@ public class NodeInfoContext {
      * rpc 客户端
      */
     private RpcClient rpcClient;
+
+    /** 已知的最大的已经被提交的日志条目的索引值 */
+    private volatile long commitIndex;
+
+    /** 最后被应用到状态机的日志条目索引值（初始化为 0，持续递增) */
+    private volatile long lastApplied = 0;
+
+    /**
+     * 状态机
+     */
+    private StateMachine stateMachine;
+
+    public StateMachine getStateMachine() {
+        return stateMachine;
+    }
+
+    public void setStateMachine(StateMachine stateMachine) {
+        this.stateMachine = stateMachine;
+    }
+
+    public long getLastApplied() {
+        return lastApplied;
+    }
+
+    public void setLastApplied(long lastApplied) {
+        this.lastApplied = lastApplied;
+    }
+
+    public long getCommitIndex() {
+        return commitIndex;
+    }
+
+    public void setCommitIndex(long commitIndex) {
+        this.commitIndex = commitIndex;
+    }
 
     public RpcClient getRpcClient() {
         return rpcClient;
