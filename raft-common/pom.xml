@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.github.houbb</groupId>
         <artifactId>raft</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </parent>
 
     <artifactId>raft-common</artifactId>
