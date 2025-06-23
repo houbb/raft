@@ -1,6 +1,6 @@
 # raft
 
-[raft](https://github.com/houbb/raft) raft 算法的基本实现。
+[raft](https://github.com/houbb/raft) raft 算法的基本 java 实现。
 
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.github.houbb/raft/badge.svg)](http://mvnrepository.com/artifact/com.github.houbb/raft)
 [![Open Source Love](https://badges.frapsoft.com/os/v2/open-source.svg?v=103)](https://github.com/houbb/raft)
@@ -12,7 +12,7 @@
 
 大家好，我是老马。
 
-主要是为了学习一下 raft，天天听大家吹牛听烦了。
+主要是为了学习一下 raft，天天听别人吹牛听烦了。
 
 用了很久也不懂，就学习一下。
 
@@ -71,3 +71,5 @@
 - [ ] 成员变更 add/remove
 
 - [ ] 日志压缩
+
+- [ ] 输出的信息优化
