@@ -49,7 +49,7 @@ public class DefaultConsensus implements Consensus {
      * 接收者实现：
      *      主要时先做一个抢占锁的动作，失败，则直接返回。
      *
-     *      如果term < currentTerm返回 false （5.2 节）
+     *      如果term 小于 currentTerm返回 false （5.2 节）
      *      如果 votedFor 为空或者就是 candidateId，并且候选人的日志至少和自己一样新，那么就投票给他（5.2 节，5.4 节）
      *
      * @param request 请求
@@ -112,11 +112,11 @@ public class DefaultConsensus implements Consensus {
      * 添加日志
      *
      * 接收者实现：
-     *    如果 term < currentTerm 就返回 false （5.1 节）
+     *    如果 term 小于 currentTerm 就返回 false （5.1 节）
      *    如果日志在 prevLogIndex 位置处的日志条目的任期号和 prevLogTerm 不匹配，则返回 false （5.3 节）
      *    如果已经存在的日志条目和新的产生冲突（索引值相同但是任期号不同），删除这一条和之后所有的 （5.3 节）
      *    附加任何在已有的日志中不存在的条目
-     *    如果 leaderCommit > commitIndex，令 commitIndex 等于 leaderCommit 和 新日志条目索引值中较小的一个
+     *    如果 leaderCommit 大于 commitIndex，令 commitIndex 等于 leaderCommit 和 新日志条目索引值中较小的一个
      *
      * @param request 请求
      * @return 结果
