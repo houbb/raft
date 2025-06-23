@@ -46,4 +46,13 @@ public class PeerManager {
     public void setSelf(PeerInfoDto self) {
         this.self = self;
     }
+
+    public List<PeerInfoDto> getPeersWithOutSelf() {
+        List<PeerInfoDto> result = new ArrayList<>(list);
+        result.remove(self);
+        return result;
+    }
+
+
+
 }

@@ -31,6 +31,15 @@ public class LogEntry implements Serializable, Comparable {
 
     private Command command;
 
+    public LogEntry() {
+    }
+
+    public LogEntry(Long index, long term, Command command) {
+        this.index = index;
+        this.term = term;
+        this.command = command;
+    }
+
     @Override
     public int compareTo(Object o) {
         if (o == null) {
@@ -65,4 +74,14 @@ public class LogEntry implements Serializable, Comparable {
     public void setCommand(Command command) {
         this.command = command;
     }
+
+    @Override
+    public String toString() {
+        return "LogEntry{" +
+                "index=" + index +
+                ", term=" + term +
+                ", command=" + command +
+                '}';
+    }
+
 }

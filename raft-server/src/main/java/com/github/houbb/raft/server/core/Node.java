@@ -58,6 +58,9 @@ public interface Node extends LifeCycle {
 
     /**
      * 转发给 leader 节点.
+     *
+     * 如果当前节点是从，当时接收到了写请求，那么应该转发处理
+     *
      * @param request 请求
      * @return 结果
      */

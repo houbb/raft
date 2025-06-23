@@ -2,15 +2,57 @@ package com.github.houbb.raft.server.dto.node;
 
 import com.github.houbb.raft.common.constant.enums.NodeStatusEnum;
 import com.github.houbb.raft.common.rpc.RpcClient;
+import com.github.houbb.raft.server.core.Consensus;
 import com.github.houbb.raft.server.core.LogManager;
 import com.github.houbb.raft.server.core.StateMachine;
+import com.github.houbb.raft.server.dto.PeerInfoDto;
+import com.github.houbb.raft.server.rpc.RpcServer;
 import com.github.houbb.raft.server.support.peer.PeerManager;
+import com.github.houbb.raft.server.support.replication.IRaftReplication;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 节点信息管理类
+ * 节点信息上下文
  * @since 1.0.0
  */
 public class NodeInfoContext {
+
+    /**
+     * 一致性实现
+     * @since 1.0.0
+     */
+    private Consensus consensus;
+
+    /**
+     * 节点信息管理
+     */
+    private PeerManager peerManager;
+
+    /** 日志条目集；每一个条目包含一个用户状态机执行的指令，和收到时的任期号 */
+    private LogManager logManager;
+
+    /**
+     * rpc 服务端
+     */
+    private RpcServer rpcServer;
+
+    /**
+     * rpc 客户端
+     */
+    private RpcClient rpcClient;
+
+    /**
+     * 状态机
+     */
+    private StateMachine stateMachine;
+
+    /**
+     * 运行状态
+     */
+    private volatile boolean running = false;
 
     /**
      * 节点状态
@@ -28,29 +70,72 @@ public class NodeInfoContext {
     /** 在当前获得选票的候选人的 Id */
     private volatile String votedFor;
 
-    /**
-     * 节点信息管理
-     */
-    private PeerManager peerManager;
-
-    /** 日志条目集；每一个条目包含一个用户状态机执行的指令，和收到时的任期号 */
-    private LogManager logManager;
-
-    /**
-     * rpc 客户端
-     */
-    private RpcClient rpcClient;
-
     /** 已知的最大的已经被提交的日志条目的索引值 */
     private volatile long commitIndex;
 
     /** 最后被应用到状态机的日志条目索引值（初始化为 0，持续递增) */
     private volatile long lastApplied = 0;
 
+    /* ========== 在领导人里经常改变的(选举后重新初始化) ================== */
+
+    /** 对于每一个服务器，需要发送给他的下一个日志条目的索引值（初始化为领导人最后索引值加一） */
+    private Map<PeerInfoDto, Long> nextIndexes = new ConcurrentHashMap<>();
+
+    /** 对于每一个服务器，已经复制给他的日志的最高索引值 */
+    private Map<PeerInfoDto, Long> matchIndexes = new ConcurrentHashMap<>();
+
     /**
-     * 状态机
+     * 备份策略
      */
-    private StateMachine stateMachine;
+    private IRaftReplication raftReplication;
+
+    public IRaftReplication getRaftReplication() {
+        return raftReplication;
+    }
+
+    public void setRaftReplication(IRaftReplication raftReplication) {
+        this.raftReplication = raftReplication;
+    }
+
+    public Map<PeerInfoDto, Long> getNextIndexes() {
+        return nextIndexes;
+    }
+
+    public void setNextIndexes(Map<PeerInfoDto, Long> nextIndexes) {
+        this.nextIndexes = nextIndexes;
+    }
+
+    public Map<PeerInfoDto, Long> getMatchIndexes() {
+        return matchIndexes;
+    }
+
+    public void setMatchIndexes(Map<PeerInfoDto, Long> matchIndexes) {
+        this.matchIndexes = matchIndexes;
+    }
+
+    public boolean isRunning() {
+        return running;
+    }
+
+    public void setRunning(boolean running) {
+        this.running = running;
+    }
+
+    public RpcServer getRpcServer() {
+        return rpcServer;
+    }
+
+    public void setRpcServer(RpcServer rpcServer) {
+        this.rpcServer = rpcServer;
+    }
+
+    public Consensus getConsensus() {
+        return consensus;
+    }
+
+    public void setConsensus(Consensus consensus) {
+        this.consensus = consensus;
+    }
 
     public StateMachine getStateMachine() {
         return stateMachine;
@@ -139,4 +224,28 @@ public class NodeInfoContext {
     public void setStatus(NodeStatusEnum status) {
         this.status = status;
     }
+
+    @Override
+    public String toString() {
+        return "NodeInfoContext{" +
+                "consensus=" + consensus +
+                ", peerManager=" + peerManager +
+                ", logManager=" + logManager +
+                ", rpcServer=" + rpcServer +
+                ", rpcClient=" + rpcClient +
+                ", stateMachine=" + stateMachine +
+                ", running=" + running +
+                ", status=" + status +
+                ", electionTime=" + electionTime +
+                ", preElectionTime=" + preElectionTime +
+                ", currentTerm=" + currentTerm +
+                ", votedFor='" + votedFor + '\'' +
+                ", commitIndex=" + commitIndex +
+                ", lastApplied=" + lastApplied +
+                ", nextIndexes=" + nextIndexes +
+                ", matchIndexes=" + matchIndexes +
+                ", raftReplication=" + raftReplication +
+                '}';
+    }
+
 }

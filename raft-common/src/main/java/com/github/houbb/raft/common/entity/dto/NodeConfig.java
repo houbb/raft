@@ -25,16 +25,16 @@ import java.util.List;
 public class NodeConfig {
 
     /** 自身 selfPort */
-    public int selfPort;
+    private int selfPort;
 
     /** 所有节点地址. */
-    public List<String> peerAddressList;
+    private List<String> peerAddressList;
 
     /**
      *  状态快照存储类型
      *  TODO: 这个可以不用管，直接根据实现类来处理。
      */
-    public String stateMachineSaveType;
+    private String stateMachineSaveType;
 
     public int getSelfPort() {
         return selfPort;

@@ -1,5 +1,6 @@
 package com.github.houbb.raft.server.support.vote;
 
+import com.alibaba.fastjson.JSON;
 import com.github.houbb.log.integration.core.Log;
 import com.github.houbb.log.integration.core.LogFactory;
 import com.github.houbb.raft.common.constant.RpcRequestCmdConst;
@@ -10,13 +11,20 @@ import com.github.houbb.raft.common.entity.resp.VoteResponse;
 import com.github.houbb.raft.common.rpc.RpcClient;
 import com.github.houbb.raft.common.rpc.RpcRequest;
 import com.github.houbb.raft.server.core.LogManager;
+import com.github.houbb.raft.server.core.StateMachine;
 import com.github.houbb.raft.server.dto.PeerInfoDto;
 import com.github.houbb.raft.server.dto.node.NodeInfoContext;
 import com.github.houbb.raft.server.support.peer.PeerManager;
+import com.github.houbb.raft.server.support.replication.IRaftReplication;
+import com.github.houbb.raft.server.util.InnerFutureList;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * 投定时调度
@@ -44,74 +52,79 @@ public class VoteTask implements Runnable {
 
     @Override
     public void run() {
-        //1. leader 不参与选举
-        if(NodeStatusEnum.LEADER.equals(nodeInfoContext.getStatus())) {
-            log.info("[Raft] current status is leader, ignore vote.");
-            return;
-        }
-
-        //2. 判断两次的时间间隔
-        boolean isFitElectionTime = isFitElectionTime();
-        if(!isFitElectionTime) {
-            return;
-        }
-
-        //3. 开始准备选举
-        //3.1 状态候选
-        nodeInfoContext.setStatus(NodeStatusEnum.CANDIDATE);
-        log.info("Node will become CANDIDATE and start election leader, info={}", nodeInfoContext);
-        //3.2 上一次的选票时间
-        nodeInfoContext.setPreElectionTime(getPreElectionTime());
-        //3.3 term 自增
-        nodeInfoContext.setCurrentTerm(nodeInfoContext.getCurrentTerm()+1);
-        //3.4 给自己投票
-        final PeerManager peerManager = nodeInfoContext.getPeerManager();
-        final String selfAddress = peerManager.getSelf().getAddress();
-        nodeInfoContext.setVotedFor(selfAddress);
-        //通知其他除了自己的节点（暂时使用同步，后续应该优化为异步线程池，这里为了简化流程）
-        // TODO: 需要考虑超时的情况
-        final List<PeerInfoDto> allPeerList = peerManager.getList();
-        List<VoteResponse> voteResponseList = new ArrayList<>();
-        for(PeerInfoDto remotePeer : allPeerList) {
-            // 跳过自己
-            if(remotePeer.getAddress().equals(selfAddress)) {
-                continue;
+        try {
+            //1. leader 不参与选举
+            if(NodeStatusEnum.LEADER.equals(nodeInfoContext.getStatus())) {
+                log.warn("[Raft] >>>>>>>>>>>>>>> current status is leader, ignore vote.");
+                return;
             }
 
-            // 远程投票
-            try {
-                VoteResponse response = voteSelfToRemote(remotePeer, selfAddress, nodeInfoContext);
-                voteResponseList.add(response);
-            } catch (Exception e) {
-                log.error("voteSelfToRemote meet ex, remotePeer={}", remotePeer, e);
+            //2. 判断两次的时间间隔
+            boolean isFitElectionTime = isFitElectionTime();
+            if(!isFitElectionTime) {
+                return;
             }
-        }
 
-        //3.5 判断选举结果
-        int voteSuccessTotal = calcVoteSuccessVote(voteResponseList, nodeInfoContext);
-        // 如果投票期间,有其他服务器发送 appendEntry , 就可能变成 follower ,这时,应该停止.
-        if (NodeStatusEnum.FOLLOWER.equals(nodeInfoContext.getStatus())) {
-            log.info("[Raft] 如果投票期间,有其他服务器发送 appendEntry, 就可能变成 follower, 这时,应该停止.");
-            return;
-        }
+            //3. 开始准备选举
+            //3.1 状态候选
+            nodeInfoContext.setStatus(NodeStatusEnum.CANDIDATE);
+            log.info("Node will become CANDIDATE and start election leader, info={}", nodeInfoContext.getPeerManager().getSelf());
+            //3.2 上一次的选票时间
+            nodeInfoContext.setPreElectionTime(getPreElectionTime());
+            //3.3 term 自增
+            nodeInfoContext.setCurrentTerm(nodeInfoContext.getCurrentTerm()+1);
+            //3.4 给自己投票
+            final PeerManager peerManager = nodeInfoContext.getPeerManager();
+            final String selfAddress = peerManager.getSelf().getAddress();
+            nodeInfoContext.setVotedFor(selfAddress);
 
-        // 是否超过一半？加上自己，等于也行。自己此时没算
-        if(voteSuccessTotal >= peerManager.getList().size() / 2) {
-            log.warn("[Raft] leader node vote success become leader {}", selfAddress);
-            nodeInfoContext.setStatus(NodeStatusEnum.LEADER);
-            peerManager.setLeader(peerManager.getSelf());
-            // 投票人信息清空
-            nodeInfoContext.setVotedFor("");
-            // 成主之后做的一些事情
-            afterBeingLeader(nodeInfoContext);
-        } else {
-            // 投票人信息清空 重新选举
-            nodeInfoContext.setVotedFor("");
-            log.warn("vote failed, wait next vote");
-        }
+            //通知其他除了自己的节点（暂时使用同步，后续应该优化为异步线程池，这里为了简化流程）
+            // TODO: 需要考虑超时的情况
+            final List<PeerInfoDto> allPeerList = peerManager.getList();
+            List<VoteResponse> voteResponseList = new ArrayList<>();
+            for(PeerInfoDto remotePeer : allPeerList) {
+                // 跳过自己
+                if(remotePeer.getAddress().equals(selfAddress)) {
+                    continue;
+                }
 
-        // 再次更新选举时间 为什么？？？？
-        nodeInfoContext.setPreElectionTime(getPreElectionTime());
+                // 远程投票
+                try {
+                    VoteResponse response = voteSelfToRemote(remotePeer, selfAddress, nodeInfoContext);
+                    voteResponseList.add(response);
+                } catch (Exception e) {
+                    log.error("voteSelfToRemote meet ex, remotePeer={}", remotePeer, e);
+                }
+            }
+
+            //3.5 判断选举结果
+            int voteSuccessTotal = calcVoteSuccessVote(voteResponseList, nodeInfoContext);
+            // 如果投票期间,有其他服务器发送 appendEntry , 就可能变成 follower ,这时,应该停止.
+            if (NodeStatusEnum.FOLLOWER.equals(nodeInfoContext.getStatus())) {
+                log.info("[Raft] 如果投票期间,有其他服务器发送 appendEntry, 就可能变成 follower, 这时,应该停止.");
+                return;
+            }
+
+            // 是否超过一半？加上自己，等于也行。自己此时没算
+            if(voteSuccessTotal >= peerManager.getList().size() / 2) {
+                log.warn("[Raft] >>>>>>>>>>>>>>>>>> leader node vote success become leader {}, voteSuccessTotal={}, total={}", selfAddress, voteSuccessTotal, peerManager.getList().size());
+                nodeInfoContext.setStatus(NodeStatusEnum.LEADER);
+                peerManager.setLeader(peerManager.getSelf());
+                // 投票人信息清空
+                nodeInfoContext.setVotedFor("");
+                // 成主之后做的一些事情
+                afterBeingLeader(nodeInfoContext);
+            } else {
+                // 投票人信息清空 重新选举
+                nodeInfoContext.setVotedFor("");
+                log.warn("vote failed, wait next vote");
+            }
+
+            // 再次更新选举时间 为什么？？？？
+            nodeInfoContext.setPreElectionTime(getPreElectionTime());
+        } catch (Exception e) {
+            log.error("Vote meet ex", e);
+        }
     }
 
     /**
@@ -121,15 +134,101 @@ public class VoteTask implements Runnable {
     private long getPreElectionTime() {
         return System.currentTimeMillis() + ThreadLocalRandom.current().nextInt(200) + 150;
     }
-
-
     /**
-     * 初始化所有的 nextIndex 值为自己的最后一条日志的 index + 1. 如果下次 RPC 时, 跟随者和leader 不一致,就会失败.
+     * 初始化所有的 nextIndex 值为自己的最后一条日志的 index + 1.
+     * 如果下次 RPC 时, 跟随者和leader 不一致,就会失败.
      * 那么 leader 尝试递减 nextIndex 并进行重试.最终将达成一致.
+     *
+     * todo: 这一段感觉和处理的基本逻辑有很多重复的地方，后续可以考虑简化
+     *
      * @param nodeInfoContext 上下文
      */
     private void afterBeingLeader(NodeInfoContext nodeInfoContext) {
-        //todo...  这个后续再日志复制部分实现
+        nodeInfoContext.setNextIndexes(new ConcurrentHashMap<>());
+        nodeInfoContext.setMatchIndexes(new ConcurrentHashMap<>());
+
+        final PeerManager peerManager = nodeInfoContext.getPeerManager();
+        final LogManager logManager = nodeInfoContext.getLogManager();
+
+        for (PeerInfoDto peer : peerManager.getPeersWithOutSelf()) {
+            nodeInfoContext.getNextIndexes().put(peer, logManager.getLastIndex() + 1);
+            nodeInfoContext.getMatchIndexes().put(peer, 0L);
+        }
+
+        // 创建[空日志]并提交，用于处理前任领导者未提交的日志
+        LogEntry logEntry = new LogEntry(null, nodeInfoContext.getCurrentTerm(), null);
+
+        // 预提交到本地日志, TODO 预提交
+        logManager.write(logEntry);
+        log.info("write logModule success, logEntry info : {}, log index : {}", logEntry, logEntry.getIndex());
+
+        final AtomicInteger success = new AtomicInteger(0);
+
+        List<Future<Boolean>> futureList = new ArrayList<>();
+
+        int count = 0;
+        //  复制到其他机器
+        final IRaftReplication raftReplication = nodeInfoContext.getRaftReplication();
+        for (PeerInfoDto peer : peerManager.getPeersWithOutSelf()) {
+            // TODO check self and RaftThreadPool
+            count++;
+            // 并行发起 RPC 复制.
+            futureList.add(raftReplication.replication(nodeInfoContext, peer, logEntry));
+        }
+
+        CountDownLatch latch = new CountDownLatch(futureList.size());
+        List<Boolean> resultList = InnerFutureList.getRPCAppendResult(futureList, latch);
+
+        try {
+            latch.await(4000, MILLISECONDS);
+        } catch (InterruptedException e) {
+            log.error(e.getMessage(), e);
+        }
+
+        for (Boolean aBoolean : resultList) {
+            if (aBoolean) {
+                success.incrementAndGet();
+            }
+        }
+
+        // 如果存在一个满足N > commitIndex的 N，并且大多数的matchIndex[i] ≥ N成立，
+        // 并且log[N].term == currentTerm成立，那么令 commitIndex 等于这个 N （5.3 和 5.4 节）
+        List<Long> matchIndexList = new ArrayList<>(nodeInfoContext.getMatchIndexes().values());
+        // 小于 2, 没有意义
+        int median = 0;
+        if (matchIndexList.size() >= 2) {
+            Collections.sort(matchIndexList);
+            median = matchIndexList.size() / 2;
+        }
+        Long N = matchIndexList.get(median);
+        if (N > nodeInfoContext.getCommitIndex()) {
+            LogEntry entry = logManager.read(N);
+            if (entry != null && entry.getTerm() == nodeInfoContext.getCurrentTerm()) {
+                nodeInfoContext.setCommitIndex(N);
+            }
+        }
+
+        //  响应客户端(成功一半)
+        final StateMachine stateMachine = nodeInfoContext.getStateMachine();
+        if (success.get() >= (count / 2)) {
+            // 更新
+            nodeInfoContext.setCommitIndex(logEntry.getIndex());
+            //  应用到状态机
+            stateMachine.apply(logEntry);
+            nodeInfoContext.setLastApplied(nodeInfoContext.getCommitIndex());
+
+            log.info("success apply local state machine,  logEntry info : {}", logEntry);
+        } else {
+            // 回滚已经提交的日志
+            logManager.removeOnStartIndex(logEntry.getIndex());
+            log.warn("fail apply local state  machine,  logEntry info : {}", logEntry);
+
+            // 无法提交空日志，让出领导者位置
+            log.warn("node {} becomeLeaderToDoThing fail ", peerManager.getSelf());
+            nodeInfoContext.setStatus(NodeStatusEnum.FOLLOWER);
+            peerManager.setLeader(null);
+            nodeInfoContext.setVotedFor("");
+        }
     }
 
     /**
@@ -158,7 +257,7 @@ public class VoteTask implements Runnable {
                 long resTerm = response.getTerm();
                 if (resTerm >= nodeInfoContext.getCurrentTerm()) {
                     nodeInfoContext.setCurrentTerm(resTerm);
-                    log.info("[Raft] update current term from vote res={}", response);
+                    log.info("[Raft] update current term from vote res={}", JSON.toJSONString(response));
                 }
             }
         }
@@ -171,6 +270,8 @@ public class VoteTask implements Runnable {
                                           final String selfAddress,
                                           final NodeInfoContext nodeInfoContext) {
         final LogManager logManager = nodeInfoContext.getLogManager();
+        final PeerManager peerManager = nodeInfoContext.getPeerManager();
+
         // 当前最后的 term
         long lastTerm = 0L;
         LogEntry last = logManager.getLast();
@@ -180,7 +281,8 @@ public class VoteTask implements Runnable {
 
         VoteRequest param = new VoteRequest();
         param.setTerm(nodeInfoContext.getCurrentTerm());
-        param.setCandidateId(nodeInfoContext.getPeerManager().getSelf().getAddress());
+        param.setVotedFor(peerManager.getSelf().getAddress());
+        param.setCandidateId(peerManager.getSelf().getAddress());
         long logIndex = logManager.getLastIndex() == null ? 0 : logManager.getLastIndex();
         param.setLastLogIndex(logIndex);
         param.setLastLogTerm(lastTerm);

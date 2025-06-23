@@ -38,55 +38,58 @@ public class HeartbeatTask implements Runnable {
      */
     @Override
     public void run() {
-        log.info(">>>>>>>>>>>>>>> [Heartbeat] task start");
-
-        final NodeStatusEnum nodeStatus = nodeInfoContext.getStatus();
-        if(!NodeStatusEnum.LEADER.equals(nodeStatus)) {
-            log.warn("Only leader node need heartbeat, currentStatus={}", nodeStatus);
-            return;
-        }
-
-        // 时间间隔控制，个人觉得没必要
-
-        // 通知 follower
-        final PeerManager peerManager = nodeInfoContext.getPeerManager();
-        List<PeerInfoDto> peerInfoList = peerManager.getList();
-        final PeerInfoDto selfInfo = peerManager.getSelf();
-
-        final RpcClient rpcClient = nodeInfoContext.getRpcClient();
-        final long currentTerm = nodeInfoContext.getCurrentTerm();
-        for(PeerInfoDto remotePeer : peerInfoList) {
-            // 跳过自己
-            if(remotePeer.getAddress().equals(selfInfo.getAddress())) {
-                continue;
+        try {
+            final PeerManager peerManager = nodeInfoContext.getPeerManager();
+            log.info("HEARTBEAT >>>>>>>>>>>>>>>>>>>>>>>> START leader={}", peerManager.getLeader());
+            final NodeStatusEnum nodeStatus = nodeInfoContext.getStatus();
+            if(!NodeStatusEnum.LEADER.equals(nodeStatus)) {
+                // log.info("HEARTBEAT >>>>>>>>>>>>>>>>>>>>>>>> Only leader node need heartbeat, currentStatus={}", nodeStatus);
+                return;
             }
 
-            AppendLogRequest appendLogRequest = new AppendLogRequest();
-            appendLogRequest.setLeaderId(selfInfo.getAddress());
-            // 这有什么用？ 通知到对方，为什么要设置对方的标识？
-            appendLogRequest.setServerId(remotePeer.getAddress());
-            appendLogRequest.setTerm(nodeInfoContext.getCurrentTerm());
-            appendLogRequest.setLeaderCommit(currentTerm);
-            appendLogRequest.setLeaderCommit(nodeInfoContext.getCommitIndex());
 
-            RpcRequest request = new RpcRequest();
-            request.setCmd(RpcRequestCmdConst.R_VOTE);
-            request.setObj(appendLogRequest);
-            request.setUrl(remotePeer.getAddress());
+            // 时间间隔控制，个人觉得没必要
+            // 通知 follower
+            List<PeerInfoDto> peerInfoList = peerManager.getList();
+            final PeerInfoDto selfInfo = peerManager.getSelf();
 
-            AppendLogResponse appendLogResponse = rpcClient.send(request);
+            final RpcClient rpcClient = nodeInfoContext.getRpcClient();
+            final long currentTerm = nodeInfoContext.getCurrentTerm();
+            for(PeerInfoDto remotePeer : peerInfoList) {
+                // 跳过自己
+                if(remotePeer.getAddress().equals(selfInfo.getAddress())) {
+                    continue;
+                }
 
-            // 结果的处理
-            final long term = appendLogResponse.getTerm();
-            if (term > currentTerm) {
-                log.error("self will become follower, he's term : {}, my term : {}", term, currentTerm);
-                nodeInfoContext.setCurrentTerm(term);
-                nodeInfoContext.setVotedFor("");
-                nodeInfoContext.setStatus(NodeStatusEnum.FOLLOWER);
+                AppendLogRequest appendLogRequest = new AppendLogRequest();
+                appendLogRequest.setLeaderId(selfInfo.getAddress());
+                // 这有什么用？ 通知到对方，为什么要设置对方的标识？
+                appendLogRequest.setServerId(remotePeer.getAddress());
+                appendLogRequest.setTerm(nodeInfoContext.getCurrentTerm());
+                appendLogRequest.setLeaderCommit(currentTerm);
+                appendLogRequest.setLeaderCommit(nodeInfoContext.getCommitIndex());
+
+                RpcRequest request = new RpcRequest();
+                request.setCmd(RpcRequestCmdConst.R_VOTE);
+                request.setObj(appendLogRequest);
+                request.setUrl(remotePeer.getAddress());
+
+                AppendLogResponse appendLogResponse = rpcClient.send(request);
+
+                // 结果的处理
+                final long term = appendLogResponse.getTerm();
+                if (term > currentTerm) {
+                    log.error("self will become follower, he's term : {}, my term : {}", term, currentTerm);
+                    nodeInfoContext.setCurrentTerm(term);
+                    nodeInfoContext.setVotedFor("");
+                    nodeInfoContext.setStatus(NodeStatusEnum.FOLLOWER);
+                }
             }
+        } catch (Exception e) {
+            log.error("HEARTBEAT meet ex", e);
         }
 
-        log.info(">>>>>>>>>>>>>>> [Heartbeat] task end");
+//        log.info(">>>>>>>>>>>>>>> [Heartbeat] task end");
     }
 
 }

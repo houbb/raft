@@ -49,7 +49,7 @@ public class DefaultRpcServer implements RpcServer {
             return new RpcResponse<>(node.handlerClientRequest((ClientKeyValueRequest) reqObj));
         }
 
-        // TODO 节点变更，暂时不处理。后续处理
+        // TODO 节点变更，暂时不处理。后续处理  add/remove
 
         return null;
     }

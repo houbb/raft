@@ -1,5 +1,6 @@
 package com.github.houbb.raft.server.core;
 
+import com.github.houbb.raft.common.core.LifeCycle;
 import com.github.houbb.raft.common.entity.req.dto.LogEntry;
 
 /**
@@ -9,7 +10,7 @@ import com.github.houbb.raft.common.entity.req.dto.LogEntry;
  *
  * @since 1.0.0
  */
-public interface StateMachine {
+public interface StateMachine extends LifeCycle {
 
     /**
      * 将数据应用到状态机.

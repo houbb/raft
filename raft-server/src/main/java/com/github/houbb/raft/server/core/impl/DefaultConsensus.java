@@ -57,87 +57,55 @@ public class DefaultConsensus implements Consensus {
      */
     @Override
     public VoteResponse vote(VoteRequest request) {
-        final long currentTerm = nodeInfoContext.getCurrentTerm();
-        final String currentVoteFor = nodeInfoContext.getVotedFor();
-        final PeerManager peerManager = nodeInfoContext.getPeerManager();
-
-        final VoteResponse voteResponse = new VoteResponse();
-        voteResponse.setTerm(currentTerm);
-        voteResponse.setVoteGranted(false);
-
-        final long reqTerm = request.getTerm();
-
         try {
-            //1. 抢占锁
-            boolean tryLogFlag = voteLock.tryLock();
-            if(!tryLogFlag) {
-                log.info("vote for request={} tryLock false", request);
-                return voteResponse;
+            VoteResponse response = new VoteResponse();
+            if (!voteLock.tryLock()) {
+                response.setTerm(nodeInfoContext.getCurrentTerm());
+                response.setVoteGranted(false);
+                return response;
             }
 
-            //2.1 如果term < currentTerm返回 false （5.2 节）
-            if(reqTerm < currentTerm) {
-                log.info("vote for reqTerm={} < currentTerm={}", reqTerm, currentTerm);
-                return voteResponse;
+            // 对方任期没有自己新
+            if (request.getTerm() < nodeInfoContext.getCurrentTerm()) {
+                response.setTerm(nodeInfoContext.getCurrentTerm());
+                response.setVoteGranted(false);
+                return response;
             }
 
-            log.info("node {} currentTerm={}. current vote for [{}], paramCandidateId : {}, paramTerm={}",
-                    peerManager.getSelf(),
-                    currentTerm,
-                    currentVoteFor,
-                    request.getCandidateId(),
-                    request.getTerm()
-                    );
+            final PeerManager peerManager = nodeInfoContext.getPeerManager();
+            // (当前节点并没有投票 或者 已经投票过了且是对方节点) && 对方日志和自己一样新
+            log.info("node {} current vote for [{}], param candidateId : {}", peerManager.getSelf(), nodeInfoContext.getVotedFor(), request.getCandidateId());
+            log.info("node {} current term {}, peer term : {}", peerManager.getSelf(), nodeInfoContext.getCurrentTerm(), request.getTerm());
 
-            //2.2 (当前节点并没有投票 或者 已经投票过了且是对方节点) && 对方日志和自己一样新
-            boolean isMatchVoteCondition = isMatchVoteCondition(request);
-            if(!isMatchVoteCondition) {
-                return voteResponse;
-            }
-
-            //2.3 如果 votedFor 为空或者就是 candidateId，并且候选人的日志至少和自己一样新，那么就投票给他（5.2 节，5.4 节）
             final LogManager logManager = nodeInfoContext.getLogManager();
-            // 对方没有自己新
-            if (logManager.getLast().getTerm() > request.getLastLogTerm()) {
-                log.info("request lastTerm is too old.");
-                return voteResponse;
-            }
-            // 对方没有自己新
-            if (logManager.getLastIndex() > request.getLastLogIndex()) {
-                log.info("request lastIndex is too old.");
-                return voteResponse;
+            if ((StringUtil.isEmpty(nodeInfoContext.getVotedFor()) || nodeInfoContext.getVotedFor().equals(request.getCandidateId()))) {
+                if (logManager.getLast() != null) {
+                    // 对方没有自己新
+                    if (logManager.getLast().getTerm() > request.getLastLogTerm()) {
+                        return VoteResponse.fail();
+                    }
+                    // 对方没有自己新
+                    if (logManager.getLastIndex() > request.getLastLogIndex()) {
+                        return VoteResponse.fail();
+                    }
+                }
+
+                // 切换状态
+                nodeInfoContext.setStatus(NodeStatusEnum.FOLLOWER);
+                // 更新
+                peerManager.setLeader(new PeerInfoDto(request.getCandidateId()));
+                nodeInfoContext.setCurrentTerm(request.getTerm());
+                nodeInfoContext.setVotedFor(request.getVotedFor());
+
+
+                // 返回成功
+                return new VoteResponse(nodeInfoContext.getCurrentTerm(), true);
             }
 
-            //3. 满足
-            nodeInfoContext.setStatus(NodeStatusEnum.FOLLOWER);
-            nodeInfoContext.setCurrentTerm(reqTerm);
-            nodeInfoContext.setVotedFor(request.getServerId()); //serverId 和 candidateId 是一样的，为什么要两个？
-            peerManager.setLeader(new PeerInfoDto(request.getCandidateId()));
-
-            //4. 返回成功
-            voteResponse.setTerm(reqTerm);
-            voteResponse.setVoteGranted(true);
-            return voteResponse;
-        } catch (Exception e) {
-            log.error("Vote meet ex, req={}", request, e);
-            return voteResponse;
+            return new VoteResponse(nodeInfoContext.getCurrentTerm(), false);
         } finally {
             voteLock.unlock();
         }
-    }
-
-    /**
-     * 满足投票条件
-     * @param request 请求
-     * @return 结果
-     */
-    private boolean isMatchVoteCondition(VoteRequest request) {
-        final String currentVoteFor = nodeInfoContext.getVotedFor();
-        if(StringUtil.isEmpty(currentVoteFor)
-                || currentVoteFor.equals(request.getCandidateId())) {
-            return true;
-        }
-        return false;
     }
 
     /**
@@ -182,8 +150,7 @@ public class DefaultConsensus implements Consensus {
             nodeInfoContext.setStatus(NodeStatusEnum.FOLLOWER);
             nodeInfoContext.setCurrentTerm(reqTerm);
             peerManager.setLeader(new PeerInfoDto(request.getLeaderId()));
-            log.info("[AppendLog] update electionTime={}, status=Follower, term={}, leader={}",
-                    nowMills, reqTerm, request.getLeaderId());
+            // log.info("[AppendLog] update electionTime={}, status=Follower, term={}, leader={}", nowMills, reqTerm, request.getLeaderId());
 
             //3.1 处理心跳
             if(ArrayUtil.isEmpty(request.getEntries())) {
@@ -205,7 +172,7 @@ public class DefaultConsensus implements Consensus {
 
     private void handleHeartbeat(AppendLogRequest request) {
         final long startTime = System.currentTimeMillis();
-        log.info("handleHeartbeat start req={}", request);
+        //log.info("handleHeartbeat start req={}", request);
 
         final LogManager logManager = nodeInfoContext.getLogManager();
 
@@ -232,7 +199,7 @@ public class DefaultConsensus implements Consensus {
         }
 
         long costTime = System.currentTimeMillis() - startTime;
-        log.info("handleHeartbeat start end, costTime={}", costTime);
+        //log.info("handleHeartbeat start end, costTime={}", costTime);
     }
 
 

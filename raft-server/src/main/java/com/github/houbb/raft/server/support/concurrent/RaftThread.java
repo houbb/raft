@@ -14,50 +14,27 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
  */
-package com.github.houbb.raft.common.entity.req.dto;
+package com.github.houbb.raft.server.support.concurrent;
 
-import java.io.Serializable;
+import com.github.houbb.log.integration.core.Log;
+import com.github.houbb.log.integration.core.LogFactory;
+import com.github.houbb.raft.server.support.hearbeat.HeartbeatTask;
 
 /**
- *
  * @since 1.0.0
  */
-public class Command implements Serializable {
+public class RaftThread extends Thread {
 
-    String key;
+    private final Log log = LogFactory.getLog(HeartbeatTask.class);
 
-    String value;
-
-    public Command() {
-    }
-
-    public Command(String key, String value) {
-        this.key = key;
-        this.value = value;
-    }
-
-    public String getKey() {
-        return key;
-    }
-
-    public void setKey(String key) {
-        this.key = key;
-    }
-
-    public String getValue() {
-        return value;
-    }
-
-    public void setValue(String value) {
-        this.value = value;
-    }
-
-    @Override
-    public String toString() {
-        return "Command{" +
-                "key='" + key + '\'' +
-                ", value='" + value + '\'' +
-                '}';
+    public RaftThread(String threadName, Runnable r) {
+        super(r, threadName);
+        setUncaughtExceptionHandler(new UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread t, Throwable e) {
+                log.warn("[Raft] Exception occurred exception from thread {}", t.getName(), e);
+            }
+        });
     }
 
 }

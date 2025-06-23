@@ -1,5 +1,7 @@
 package com.github.houbb.raft.server.bs;
 
+import com.alibaba.fastjson.JSON;
+import com.github.houbb.heaven.util.common.ArgUtil;
 import com.github.houbb.log.integration.core.Log;
 import com.github.houbb.log.integration.core.LogFactory;
 import com.github.houbb.raft.common.entity.dto.NodeConfig;
@@ -32,7 +34,11 @@ public class RaftBootstrap {
      */
     private Node node = new DefaultNode();
 
-    public RaftBootstrap(int serverPort, List<String> clusterAddressList) {
+    public RaftBootstrap(int serverPort,
+                         List<String> clusterAddressList) {
+        ArgUtil.notEmpty(clusterAddressList, "clusterAddressList");
+        ArgUtil.notNegative(serverPort, "serverPort");
+
         this.serverPort = serverPort;
         this.clusterAddressList = clusterAddressList;
     }
@@ -42,15 +48,14 @@ public class RaftBootstrap {
     }
 
     public void boot() throws Throwable {
+        // 配置信息
         NodeConfig config = new NodeConfig();
-
         // 自身节点
         config.setSelfPort(serverPort);
-
         // 其他节点地址
         config.setPeerAddressList(clusterAddressList);
-
         node.setConfig(config);
+        log.info("[Rate] config={}", JSON.toJSONString(config));
         node.init();
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -59,13 +64,13 @@ public class RaftBootstrap {
             }
         }));
 
-        log.info("gracefully wait");
+        log.info("[Raft] RaftBootstrap gracefully wait");
 
         synchronized (node) {
             node.wait();
         }
 
-        log.info("gracefully stop");
+        log.info("[Raft] RaftBootstrap gracefully stop");
         node.destroy();
     }
 }

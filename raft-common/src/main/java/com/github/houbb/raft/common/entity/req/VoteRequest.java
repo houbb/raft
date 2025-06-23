@@ -7,6 +7,16 @@ package com.github.houbb.raft.common.entity.req;
  */
 public class VoteRequest extends BaseRaftRequest {
 
+    /**
+     * 为谁投票
+     *
+     * PS: 发现其他线程如果设置为空，再另一个地方取不到值
+     * 可能是我的写法问题
+     *
+     * @since 1.0.0
+     */
+    private String votedFor;
+
     /** 候选人的任期号  */
     private long term;
 
@@ -21,6 +31,14 @@ public class VoteRequest extends BaseRaftRequest {
 
     /** 候选人最后日志条目的任期号  */
     private long lastLogTerm;
+
+    public String getVotedFor() {
+        return votedFor;
+    }
+
+    public void setVotedFor(String votedFor) {
+        this.votedFor = votedFor;
+    }
 
     public long getTerm() {
         return term;

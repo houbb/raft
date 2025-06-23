@@ -12,6 +12,14 @@ public class VoteResponse extends BaseRaftResponse {
     /** 候选人赢得了此张选票时为真 */
     private boolean voteGranted;
 
+    public VoteResponse(long term, boolean voteGranted) {
+        this.term = term;
+        this.voteGranted = voteGranted;
+    }
+
+    public VoteResponse() {
+    }
+
     public long getTerm() {
         return term;
     }
@@ -27,4 +35,11 @@ public class VoteResponse extends BaseRaftResponse {
     public void setVoteGranted(boolean voteGranted) {
         this.voteGranted = voteGranted;
     }
+
+    public static VoteResponse fail() {
+        VoteResponse response = new VoteResponse();
+        response.setVoteGranted(false);
+        return response;
+    }
+
 }

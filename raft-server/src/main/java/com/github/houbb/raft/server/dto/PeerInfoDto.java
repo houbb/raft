@@ -1,5 +1,7 @@
 package com.github.houbb.raft.server.dto;
 
+import java.util.Objects;
+
 /**
  * 节点信息
  */
@@ -24,4 +26,24 @@ public class PeerInfoDto {
     public void setAddress(String address) {
         this.address = address;
     }
+
+    @Override
+    public String toString() {
+        return "PeerInfoDto{" +
+                "address='" + address + '\'' +
+                '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        PeerInfoDto that = (PeerInfoDto) o;
+        return Objects.equals(address, that.address);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(address);
+    }
+
 }

@@ -91,4 +91,13 @@ public class ClientKeyValueRequest extends BaseRaftRequest {
         }
     }
 
+    @Override
+    public String toString() {
+        return "ClientKeyValueRequest{" +
+                "type=" + type +
+                ", key='" + key + '\'' +
+                ", value='" + value + '\'' +
+                '}';
+    }
+
 }
