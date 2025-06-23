@@ -77,16 +77,6 @@
                 <scope>test</scope>
                 <optional>true</optional>
             </dependency>
-            <dependency>
-                <groupId>org.rocksdb</groupId>
-                <artifactId>rocksdbjni</artifactId>
-                <version>5.14.3</version>
-            </dependency>
-            <dependency>
-                <groupId>com.alibaba</groupId>
-                <artifactId>fastjson</artifactId>
-                <version>1.2.83</version>
-            </dependency>
 
             <!-- RPC transport -->
             <dependency>
@@ -114,7 +104,6 @@ http://172.20.61.182:18326/admin/browse.jsp?JMSDestination=Consumer.foot_stone_t
                 <artifactId>rocksdbjni</artifactId>
                 <version>5.14.3</version>
             </dependency>
-
             <!-- serializer -->
             <dependency>
                 <groupId>com.alibaba</groupId>
