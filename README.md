@@ -76,6 +76,8 @@
 
 - [ ] 输出的信息优化
 
+- [ ] 日志从 log4j==>log4j2
+
 # 技术鸣谢
 
 主要参考项目 https://github.com/stateIs0/lu-raft-kv
