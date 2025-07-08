@@ -27,6 +27,9 @@ import com.github.houbb.raft.server.rpc.DefaultRpcServer;
 import com.github.houbb.raft.server.rpc.RpcServer;
 import com.github.houbb.raft.server.support.concurrent.RaftThreadPool;
 import com.github.houbb.raft.server.support.hearbeat.HeartbeatTask;
+import com.github.houbb.raft.server.support.peer.ClusterPeerManager;
+import com.github.houbb.raft.server.support.peer.ClusterPeerResult;
+import com.github.houbb.raft.server.support.peer.IClusterPeerManager;
 import com.github.houbb.raft.server.support.peer.PeerManager;
 import com.github.houbb.raft.server.support.replication.DefaultRaftReplication;
 import com.github.houbb.raft.server.support.replication.IRaftReplication;
@@ -58,6 +61,13 @@ public class DefaultNode implements Node {
      * @since 1.0.0
      */
     private final NodeInfoContext nodeInfoContext = new NodeInfoContext();
+
+    /**
+     * 集群节点管理类
+     *
+     * @since 1.1.0
+     */
+    private IClusterPeerManager clusterPeerManager;
 
     @Override
     public void setConfig(NodeConfig config) {
@@ -92,6 +102,9 @@ public class DefaultNode implements Node {
         nodeInfoContext.setLogManager(logManager);
         Consensus consensus = new DefaultConsensus(nodeInfoContext);
         nodeInfoContext.setConsensus(consensus);
+
+        // delegate
+        clusterPeerManager = new ClusterPeerManager(nodeInfoContext);
 
         //2. 初始化调度
         RaftThreadPool.scheduleAtFixedRate(new HeartbeatTask(nodeInfoContext), 1000, 1000);
@@ -244,5 +257,15 @@ public class DefaultNode implements Node {
         return nodeInfoContext.getRpcClient().send(r);
     }
 
+
+    @Override
+    public ClusterPeerResult addPeer(PeerInfoDto peerInfoDto) {
+        return clusterPeerManager.addPeer(peerInfoDto);
+    }
+
+    @Override
+    public ClusterPeerResult removePeer(PeerInfoDto peerInfoDto) {
+        return clusterPeerManager.removePeer(peerInfoDto);
+    }
 
 }

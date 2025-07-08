@@ -8,6 +8,7 @@ import com.github.houbb.raft.common.entity.req.VoteRequest;
 import com.github.houbb.raft.common.rpc.RpcRequest;
 import com.github.houbb.raft.common.rpc.RpcResponse;
 import com.github.houbb.raft.server.core.Node;
+import com.github.houbb.raft.server.dto.PeerInfoDto;
 
 /**
  * 默认实现
@@ -47,9 +48,14 @@ public class DefaultRpcServer implements RpcServer {
             return new RpcResponse<>(node.handlerAppendEntries((AppendLogRequest) reqObj));
         } else if (request.getCmd() == RpcRequestCmdConst.CLIENT_REQ) {
             return new RpcResponse<>(node.handlerClientRequest((ClientKeyValueRequest) reqObj));
+        } else if (request.getCmd() == RpcRequestCmdConst.CHANGE_CONFIG_REMOVE) {
+            PeerInfoDto peerInfoDto = (PeerInfoDto) request.getObj();
+            return new RpcResponse<>(node.removePeer(peerInfoDto));
+        } else if (request.getCmd() == RpcRequestCmdConst.CHANGE_CONFIG_ADD) {
+            PeerInfoDto peerInfoDto = (PeerInfoDto) request.getObj();
+            return new RpcResponse<>(node.addPeer(peerInfoDto));
         }
-
-        // TODO 节点变更，暂时不处理。后续处理  add/remove
+        // todo 其他的支持
 
         return null;
     }

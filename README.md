@@ -74,6 +74,8 @@
 
 - [ ] 输出的信息优化
 
+- [ ] 企业级 raft + 实际使用
+
 # 技术鸣谢
 
 主要参考项目 https://github.com/stateIs0/lu-raft-kv
